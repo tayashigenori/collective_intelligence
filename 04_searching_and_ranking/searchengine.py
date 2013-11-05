@@ -34,27 +34,77 @@ class crawler:
     # エントリIDを取得したり、それが存在しない場合には追加
     # するための補助関数
     def getentryid(self,table,field,value,cretenew=True):
-        return None
+        cur=self.con.execute(
+            "select rowid from %s where %s='%s'" % (table,field,value))
+        res=cur.fetchone()
+        if res==None:
+            cur=self.con.execute(
+                "insert into %s (%s) values ('%s')" % (table,field,value))
+            return cur.lastrowid
+        else:
+            return res[0]
 
     # 個々のページをインデックスする
     def addtoindex(self,url,soup):
+        if self.isindexed(url): return
         print 'Indexing %s' % url
+
+        # 個々の単語を取得する
+        text=self.gettextonly(soup)
+        words=self.separatewords(text)
+
+        # URL id を取得する
+        urlid=self.getentryid('urllist','url',url)
+
+        # それぞれの単語と、このurlのリンク
+        for i in range(len(words)):
+            word=words[i]
+            if word in ignorewords: continue
+            wordid=self.getentryid('wordlist','word',word)
+            self.con.execute("insert into wordlocation(urlid,wordid,location) \
+                values (%d,%d,%d)" % (urlid,wordid,i))
 
     # HTMLのページからタグのない状態でテキストを抽出する
     def gettextonly(self,soup):
-        return None
+        v=soup.string
+        if v==None:
+            c=soup.contents
+            resulttext=''
+            for t in c:
+                subtext=self.gettextonly(t)
+                resulttext+=subtext+'\n'
+            return resulttext
+        else:
+            return v.strip()
 
     # 空白以外の文字で単語を分割する
     def separatewords(self,text):
-        return None
+        splitter=re.compile('\\W*')
+        return [s.lower() for s in splitter.split(text) if s != '']
 
     # URLが既にインデックスされていたらtrueを返す
-    def isindexed(self,utl):
+    def isindexed(self,url):
+        u=self.con.execute \
+           ("select rowid from urllist where url='%s'" %url).fetchone()
+        if u != None:
+            # URL が実際にクロールされているかどうかチェックする
+            v=self.con.execute(
+                'select * from wordlocation where urlid=%d' % u[0]).fetchone()
+            if v != None: return True
         return False
 
     # 2つのページの間にリンクを付け加える
-    def addlinkref(self,urlFrom,utlTo,linkText):
-        pass
+    def addlinkref(self,urlFrom,urlTo,linkText):
+        words=self.separatewords(linkText)
+        fromid=self.getentryid('urllist','url',urlFrom)
+        toid=self.getentryid('urllist','url',urlTo)
+        if fromid==toid: return
+        cur=self.con.execute("insert into link(fromid,toid) values (%d,%d)" % (fromid,toid))
+        linkid=cur.lastrowid
+        for word in words:
+            if word in ignorewords: continue
+            wordid=self.getentryid('wordlist','word',word)
+            self.con.execute("insert into linkwords(linkid,wordid) values (%d,%d)" % (linkid,wordid))
 
     # ページのリストを受け取り、与えられた深さで幅優先の検索を行ない
     # ページをインデクシングする
@@ -106,6 +156,47 @@ class crawler:
         self.con.execute('create index if not exists urlfromidx on link(fromid)')
         # commit
         self.dbcommit()
+
+class searcher:
+    def __init__(self,dbname):
+        self.con=sqlite.connect(dbname)
+
+    def __del__(self):
+        self.con.close()
+
+    def getmatchrows(self,q):
+        # クエリを作るための文字列
+        fieldlist='w0.urlid'
+        tablelist=''
+        clauselist=''
+        wordids=[]
+
+        # 空白で単語を分ける
+        words=q.split(' ')
+        tablenumber=0
+
+        for word in words:
+            # 単語のIDを取得
+            wordrow=self.con.execute(
+                "select rowid from wordlist where word='%s'" % word).fetchone()
+            if wordrow != None:
+                wordid=wordrow[0]
+                wordids.append(wordid)
+                if tablenumber>0:
+                    tablelist+=','
+                    clauselist+=' and '
+                    clauselist+='w%d.urlid=w%d.urlid and ' % (tablenumber-1,tablenumber)
+                fieldlist+=',w%d.location' % tablenumber
+                tablelist+='wordlocation w%d' % tablenumber
+                clauselist+='w%d.wordid=%d' % (tablenumber,wordid)
+                tablenumber+=1
+
+        # 分割されたパーツからクエリを構築
+        fullquery='select %s from %s where %s' % (fieldlist,tablelist,clauselist)
+        cur=self.con.execute(fullquery)
+        rows=[row for row in cur]
+
+        return rows,wordids
 
 def main():
     return
