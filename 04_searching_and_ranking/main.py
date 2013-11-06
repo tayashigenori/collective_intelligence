@@ -33,7 +33,29 @@ def test_crawler2():
 def test_getmatchrows():
     sys.stderr.write("testing get match rows...\n")
     e=searchengine.searcher('searchindex.db')
-    print e.getmatchrows('functional programming')
+    print e.getmatchrows('programming')
+
+def test_query():
+    sys.stderr.write("testing query...\n")
+    e=searchengine.searcher('searchindex.db')
+    print e.query('programming')
+
+def test_query_ranking(weightFunc):
+    sys.stderr.write("testing query with weighting function '%s'...\n" % weightFunc)
+    e=searchengine.searcher('searchindex.db')
+    print e.query('programming',weightFunc)
+
+def test_calculate_pagerank():
+    sys.stderr.write("testing pagerank calculation...\n")
+    crawler=searchengine.crawler('searchindex.db')
+    crawler.calculatepagerank()
+    sys.stderr.write("checking pagerank result...\n")
+    cur=crawler.con.execute('select * from pagerank order by score desc')
+    for i in range(3): print cur.next()
+    sys.stderr.write("checking pagerank top url...\n")
+    e=searchengine.searcher('searchindex.db')
+    urlid=cur.next()[0]
+    print e.geturlname(urlid)
 
 def main():
     test_urllib2()
@@ -41,6 +63,19 @@ def main():
     test_createindextables()
     test_crawler2()
     test_getmatchrows()
+    test_query()
+    test_query_ranking('frequencyscore')
+    test_query_ranking('locationscore')
+    test_query_ranking(['frequencyscore', 'locationscore'])
+    test_query_ranking({'frequencyscore':1.0, 'locationscore':1.5})
+    test_query_ranking('distancescore')
+    test_query_ranking('inboundlinkscore')
+    test_calculate_pagerank()
+    test_query_ranking({'frequencyscore':1.0,
+                        'locationscore':1.0,
+                        'pagerankscore':1.0,
+                        })
+    test_query_ranking({'linktextscore':1.0})
     return
 
 if __name__ == '__main__':
