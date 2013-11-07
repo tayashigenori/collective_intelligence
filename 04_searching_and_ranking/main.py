@@ -2,7 +2,11 @@
 
 import sys
 import searchengine
+import nn
 
+"""
+search engine
+"""
 def test_urllib2():
     sys.stderr.write("testing urllib2...\n")
     import urllib2
@@ -57,7 +61,30 @@ def test_calculate_pagerank():
     urlid=cur.next()[0]
     print e.geturlname(urlid)
 
+"""
+neural net
+"""
+def test_select():
+    sys.stderr.write("testing create hiddennodes...\n")
+    mynet=nn.searchnet('nn.db')
+    mynet.maketables()
+    wWorld,wRiver,wBank =101,102,103
+    uWorldBank,uRiver,uEarth =201,202,203
+    mynet.generatehiddennode([wWorld,wBank],[uWorldBank,uRiver,uEarth])
+    sys.stderr.write("testing 'select * from wordhidden'...\n")
+    for c in mynet.con.execute('select * from wordhidden'): print c
+    sys.stderr.write("testing 'select * from hiddenurl'...\n")
+    for c in mynet.con.execute('select * from hiddenurl'): print c
+
+def test_feedforward():
+    sys.stderr.write("testing feedforward (without training)...\n")
+    mynet=nn.searchnet('nn.db')
+    wWorld,wRiver,wBank =101,102,103
+    uWorldBank,uRiver,uEarth =201,202,203
+    print mynet.getresult([wWorld,wBank],[uWorldBank,uRiver,uEarth])
+
 def main():
+    # test search engine
     test_urllib2()
     #test_crawler()
     test_createindextables()
@@ -76,6 +103,10 @@ def main():
                         'pagerankscore':1.0,
                         })
     test_query_ranking({'linktextscore':1.0})
+    
+    # test neural net
+    test_select()
+    test_feedforward()
     return
 
 if __name__ == '__main__':

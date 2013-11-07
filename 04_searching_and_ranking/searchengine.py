@@ -276,12 +276,14 @@ class searcher:
         counts=dict([(row[0],0) for row in rows])
         for row in rows: counts[row[0]]+=1
         return self.normalizescores(counts)
+
     def locationscore(self,rows):
         locations=dict([(row[0],1000000) for row in rows])
         for row in rows:
             loc=sum(row[1:])
             if loc<locations[row[0]]: locations[row[0]]=loc
         return self.normalizescores(locations,smallIsBetter=True)
+
     def distancescore(self,rows):
         # 単語が一つしかない場合、全員が勝者！
         if len(rows[0])<=2: return dict([(row[0],1.0) for row in rows])
@@ -293,17 +295,20 @@ class searcher:
             dist=sum([abs(row[i]-row[i-1]) for i in range(2,len(row))])
             if dist<mindistance[row[0]]: mindistance[row[0]]=dist
         return self.normalizescores(mindistance,smallIsBetter=True)
+
     def inboundlinkscore(self,rows):
         uniqueurls=set([row[0] for row in rows])
         inboundcount=dict([(u,self.con.execute( \
             'select count(*) from link where toid=%d' % u).fetchone()[0]) \
                            for u in uniqueurls])
         return self.normalizescores(inboundcount)
+
     def pagerankscore(self,rows):
         pageranks=dict([(row[0],self.con.execute(
             'select score from pagerank where urlid=%d' % row[0]).fetchone()[0])
                         for row in rows])
         return self.normalizescores(pageranks)
+
     def linktextscore(self,rows,wordids):
         linkscores=dict([(row[0],0) for row in rows])
         for wordid in wordids:
