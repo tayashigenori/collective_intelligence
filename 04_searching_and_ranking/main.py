@@ -76,14 +76,34 @@ def test_select():
     sys.stderr.write("testing 'select * from hiddenurl'...\n")
     for c in mynet.con.execute('select * from hiddenurl'): print c
 
+wWorld,wRiver,wBank =101,102,103
+uWorldBank,uRiver,uEarth =201,202,203
 def test_feedforward():
     sys.stderr.write("testing feedforward (without training)...\n")
     mynet=nn.searchnet('nn.db')
-    wWorld,wRiver,wBank =101,102,103
-    uWorldBank,uRiver,uEarth =201,202,203
     print mynet.getresult([wWorld,wBank],[uWorldBank,uRiver,uEarth])
 
+def test_trainquery():
+    sys.stderr.write("testing training query...\n")
+    mynet=nn.searchnet('nn.db')
+    mynet.trainquery([wWorld,wBank],[uWorldBank,uRiver,uEarth],uWorldBank)
+    print mynet.getresult([wWorld,wBank],[uWorldBank,uRiver,uEarth])
+
+def test_trainqueries():
+    sys.stderr.write("testing training queries...\n")
+    mynet=nn.searchnet('nn.db')
+    allurls=[uWorldBank,uRiver,uEarth]
+    for i in range(30):
+        mynet.trainquery([wWorld,wBank],allurls,uWorldBank)
+        mynet.trainquery([wRiver,wBank],allurls,uRiver)
+        mynet.trainquery([wWorld],allurls,uEarth)
+
+    print mynet.getresult([wWorld,wBank],allurls)
+    print mynet.getresult([wRiver,wBank],allurls)
+    print mynet.getresult([wBank],allurls)
+
 def main():
+    """
     # test search engine
     test_urllib2()
     #test_crawler()
@@ -103,10 +123,12 @@ def main():
                         'pagerankscore':1.0,
                         })
     test_query_ranking({'linktextscore':1.0})
-    
+    """
     # test neural net
     test_select()
     test_feedforward()
+    test_trainquery()
+    test_trainqueries()
     return
 
 if __name__ == '__main__':

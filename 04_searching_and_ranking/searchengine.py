@@ -3,6 +3,9 @@
 import urllib2
 from BeautifulSoup import *
 from urlparse import urljoin
+# added after nn class was implemented
+import nn
+mynet=nn.searchnet('nn.db')
 
 try:
     # version >= 2.5
@@ -211,6 +214,8 @@ class searcher:
         rankedscores=sorted([(score,url) for (url,score) in scores.items()],reverse=1)
         for (score,urlid) in rankedscores[0:10]:
             print '%f\t%s' % (score,self.geturlname(urlid))
+        # added at the end of Chap 4
+        return wordids,[r[1] for r in rankedscores[0:10]]
 
     def getmatchrows(self,q):
         # クエリを作るための文字列
@@ -332,6 +337,14 @@ class searcher:
             maxscore=max(scores.values())
             if maxscore==0: maxscore=vsmall
             return dict([(u,float(c)/maxscore) for (u,c) in scores.items()])
+
+    # added after nn class was inplemented
+    def nnscore(self,rows,wordids):
+        # ユニークな URL ID をソートされたリストとして取得する
+        urlids=[urlid for urlid in set([row[0] for row in rows])]
+        nnres=mynet.getresult(wordids,urlids)
+        scores=dict([(urlids[i],nnres[i]) for i in range(len(urlids))])
+        return self.normalizescore(scores)
 
     """
     補助関数
