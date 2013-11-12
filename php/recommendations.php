@@ -350,7 +350,7 @@ switch ($options['t']) {
         $recommendations = get_recommendations($critics, $user);
         echo sprintf("[To:%s] Recommendation for you!\n", $user);
         foreach ($recommendations as $item => $score) {
-            echo sprintf("recommended item: %s, recommend score: %s\n", $restaurants[$item], $score);
+            echo sprintf("recommended item: %s (%d banme), recommend score: %s\n", $restaurants[$item], $item, $score);
         }
         break;
     default:
