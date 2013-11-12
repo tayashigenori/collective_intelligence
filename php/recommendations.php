@@ -57,9 +57,35 @@ $critics = array(
     )
 );
 
-function load_csv_from_file($filepath)
+function load_tastes_from_file($filepath)
 {
-    return false;
+    $r = array();
+    $file_handle = fopen($filepath, 'r');
+    if ($file_handle === false) {
+        return array();
+    }
+    while( ($line = fgets($file_handle)) !== false) {
+        $line_parts = explode("\t", $line);
+        $person = $line_parts[0];
+        $tastes = $line_parts[1];
+        $r[$person] = explode(",", $tastes);
+    }
+    fclose($file_handle);
+    return $r;
+}
+function load_restaurants_from_file($filepath)
+{
+    $r = array();
+    $file_handle = fopen($filepath, 'r');
+    if ($file_handle === false) {
+        return array();
+    }
+    while( ($line = fgets($file_handle)) !== false) {
+        #$line_eucjp = mb_convert_encoding($line, 'EUC-JP', 'UTF-8');
+        $r = explode(",", $line);
+    }
+    fclose($file_handle);
+    return $r;
 }
 
 /*
@@ -161,7 +187,8 @@ function top_matches($prefs, $person, $n = 5, $similarity = 'sim_pearson')
     }
     // sort scores so that higher scores come first
     arsort($scores);
-    return array_slice($scores, 0, $n);
+    return $scores;
+    //return array_slice($scores, 0, $n);
 }
 
 
@@ -169,6 +196,7 @@ function top_matches($prefs, $person, $n = 5, $similarity = 'sim_pearson')
 function get_recommendations($prefs, $person, $similarity = "sim_pearson")
 {
     $totals = array();
+    $rankings = array();
     $sim_sums = array();
     foreach ($prefs as $other => $item_arr) {
         // don't compare with self
@@ -296,6 +324,41 @@ function loadMovieLens(path='./data/ml-100k') {
 */
 
 // main
+$options = getopt("t:u:f:r:");
+if (!is_array($options) ) {
+    print "There was a problem reading in the options.\n\n";
+    exit(1);
+}
+if (!isset($options['t']) || !isset($options['u']) || !isset($options['f']) || !isset($options['r'])) {
+    print "t,u,f,r options are mandatory options.\n\n";
+    exit(1);
+}
+
+$critics = load_tastes_from_file($options['f']);
+$restaurants = load_restaurants_from_file($options['r']);
+
+$user = $options['u'];
+switch ($options['t']) {
+    case 'similar_person':
+        $top_matches = top_matches($critics, $user, 3);
+        echo sprintf("[To:%s] Most similar person to you!\n", $user);
+        foreach ($top_matches as $other => $score) {
+            echo sprintf("similar person: %s, similar score: %s\n", $other, $score);
+        }
+        break;
+    case 'recommendation':
+        $recommendations = get_recommendations($critics, $user);
+        echo sprintf("[To:%s] Recommendation for you!\n", $user);
+        foreach ($recommendations as $item => $score) {
+            echo sprintf("recommended item: %s, recommend score: %s\n", $restaurants[$item], $score);
+        }
+        break;
+    default:
+        # do nothing
+        echo "unknown type\n\n";
+}
+
+/*
 echo sim_distance($critics, 'Lisa Rose', 'Gene Seymour');
 echo "\n";
 echo sim_pearson($critics, 'Lisa Rose', 'Gene Seymour');
@@ -318,4 +381,5 @@ foreach (get_recommendations($critics, 'Toby', 'sim_distance') as $item => $scor
     echo "\n";
 }
 echo "\n";
+*/
 
