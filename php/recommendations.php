@@ -236,72 +236,77 @@ function get_recommendations($prefs, $person, $similarity = "sim_pearson")
     arsort($rankings);
     return $rankings;
 }
+
+function transform_prefs($prefs)
+{
+    $result = array();
+    foreach ($prefs as $person) {
+        foreach ($prefs[$person] as $item) {
+            if (!array_key_exists($item, $result)) {
+                $result[$item] = array();
+            }
+            $result[$item][$person] = $prefs[$person][$item];
+        }
+    }
+    return $result;
+}
+
+function calculate_similar_items($prefs, $n = 10)
+{
+    $result = array();
+
+    $item_prefs = transform_prefs($prefs);
+    $c = 0;
+    foreach ($item_prefs as $item) {
+        $c += 1;
+        if ( $c % 100 == 0) {
+            echo sprintf("%d / %d", $c, count($item_prefs));
+        }
+        $scores = top_matches($item_prefs, $item, $n, 'sim_distance');
+        $result[$item] = $scores;
+    }
+    return $result;
+}
+
+function get_recommended_items($prefs, $item_match, $user)
+{
+    $user_ratings = $prefs[$user];
+    $scores = array();
+    $total_sim = array();
+
+    foreach($user_ratings as $item => $rating) {
+
+        foreach ($item_match[$item] as $similarity => $item2) {
+
+            if (array_key_exists($item2, $user_ratings)) {
+                continue;
+            }
+
+            if (array_key_exists($items, $scores)) {
+                $scores[$item2] = 0;
+            }
+            $scores[$item2] += $similarity * $rating;
+
+            if (array_key_exists($items, $total_sim)) {
+                $total_sim[$item2] = 0;
+            }
+            $total_sim[$item2] += $similarity;
+        }
+    }
+
+    $rankings = array();
+    foreach ($scores as $item => $score) {
+        $rankings[] = array(
+            $score / $total_sim[$item],
+            $item
+        );
+    }
+
+    arsort($rankings);
+    return $rankings;
+}
+
 /*
-"""
-データを変換
-"""
-def transformPrefs(prefs):
-    result={}
-    for person in prefs:
-        for item in prefs[person]:
-            result.setdefault(item,{})
-            # itemとpersonを入れ替える
-            result[item][person]=prefs[person][item]
-    return result
-
-"""
-アイテムベースの類似度を算出
-"""
-def calculateSimilarItems(prefs,n=10):
-    # アイテムをキーとして持ち、それぞれのアイテムに似ている
-    # アイテムのリストを値として持つディクショナリを作る。
-    result={}
-
-    # 嗜好の行列をアイテム中心な形に反転させる
-    itemPrefs=transformPrefs(prefs)
-    c=0
-    for item in itemPrefs:
-        # 巨大なデータセット用にステータスを表示
-        c+=1
-        if c%100==0: print "%d / %d" % (c,len(itemPrefs))
-        # このアイテムにもっとも似ているアイテムたちを探す
-        scores=topMatches(itemPrefs,item,n=n,similarity=sim_distance)
-        result[item]=scores
-    return result
-
-"""
-アイテムベースの類似度を算出した上で推薦を算出する
-"""
-def getRecommendedItems(prefs,itemMatch,user):
-    userRatings=prefs[user]
-    scores={}
-    totalSim={}
-
-    # このユーザに評価されたアイテムをループする
-    for (item,rating) in userRatings.items():
-
-        # このアイテムに似ているアイテムたちをループする
-        for (similarity,item2) in itemMatch[item]:
-
-            # このアイテムに対してユーザがすでに評価を行なっていれば無視する
-            if item2 in userRatings: continue
-
-            # 評点と類似度を掛け合わせたものの合計で重み付けする
-            scores.setdefault(item2,0)
-            scores[item2]+=similarity*rating
-
-            # すべての類似度の合計
-            totalSim.setdefault(item2,0)
-            totalSim[item2]+=similarity
-
-    # 正規化のため、それぞれの重み付けしたスコアを類似度の合計で割る
-    rankings=[(score/totalSim[item],item) for item,score in scores.items()]
-
-    # 降順に並べたランキングを返す
-    rankings.sort()
-    rankings.reverse()
-    return rankings
-
 """
 movielensデータ
 """
