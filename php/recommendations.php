@@ -237,6 +237,7 @@ function get_recommendations($prefs, $person, $similarity = "sim_pearson")
     return $rankings;
 }
 
+// transform data
 function transform_prefs($prefs)
 {
     $result = array();
@@ -245,48 +246,60 @@ function transform_prefs($prefs)
             if (!array_key_exists($item, $result)) {
                 $result[$item] = array();
             }
+            // exchange $item and $person
             $result[$item][$person] = $prefs[$person][$item];
         }
     }
     return $result;
 }
 
+// compute item-based similarities
 function calculate_similar_items($prefs, $n = 10)
 {
+    // create an array with the key as $item and the value as a list of similar items to it
     $result = array();
 
+    // transform prefs marix to item-centric
     $item_prefs = transform_prefs($prefs);
     $c = 0;
     foreach ($item_prefs as $item) {
+        // show status in processing huge dataset
         $c += 1;
         if ( $c % 100 == 0) {
             echo sprintf("%d / %d", $c, count($item_prefs));
         }
+        // find items most similar to $item
         $scores = top_matches($item_prefs, $item, $n, 'sim_distance');
         $result[$item] = $scores;
     }
     return $result;
 }
 
+// compute recommendations by computing item-based similarities
 function get_recommended_items($prefs, $item_match, $user)
 {
     $user_ratings = $prefs[$user];
     $scores = array();
     $total_sim = array();
 
+    // loop over items rated by this $user
     foreach($user_ratings as $item => $rating) {
 
+        // loop over items similar to this $item
         foreach ($item_match[$item] as $similarity => $item2) {
 
+            // ignore items $user already rated
             if (array_key_exists($item2, $user_ratings)) {
                 continue;
             }
 
+            // compute weighted score of products of similarity and rating
             if (array_key_exists($items, $scores)) {
                 $scores[$item2] = 0;
             }
             $scores[$item2] += $similarity * $rating;
 
+            // compute sum of all similarities
             if (array_key_exists($items, $total_sim)) {
                 $total_sim[$item2] = 0;
             }
@@ -294,6 +307,7 @@ function get_recommended_items($prefs, $item_match, $user)
         }
     }
 
+    // for normalization, divide weighted score by sum of similarities
     $rankings = array();
     foreach ($scores as $item => $score) {
         $rankings[] = array(
@@ -302,6 +316,7 @@ function get_recommended_items($prefs, $item_match, $user)
         );
     }
 
+    // return ranking sorted in descending order
     arsort($rankings);
     return $rankings;
 }
