@@ -57,23 +57,7 @@ $critics = array(
     )
 );
 
-function load_tastes_from_file($filepath)
-{
-    $r = array();
-    $file_handle = fopen($filepath, 'r');
-    if ($file_handle === false) {
-        return array();
-    }
-    while( ($line = fgets($file_handle)) !== false) {
-        $line_parts = explode("\t", $line);
-        $person = $line_parts[0];
-        $tastes = $line_parts[1];
-        $r[$person] = explode(",", $tastes);
-    }
-    fclose($file_handle);
-    return $r;
-}
-function load_restaurants_from_file($filepath)
+function loadRestaurantsFromFile($filepath)
 {
     $r = array();
     $file_handle = fopen($filepath, 'r');
@@ -82,7 +66,36 @@ function load_restaurants_from_file($filepath)
     }
     while( ($line = fgets($file_handle)) !== false) {
         #$line_eucjp = mb_convert_encoding($line, 'EUC-JP', 'UTF-8');
-        $r = explode(",", $line);
+        $r = explode(",", rtrim($line));
+    }
+    fclose($file_handle);
+    return $r;
+}
+function loadTastesFromFile($filepath, $restaurants = array())
+{
+    $r = array();
+    $file_handle = fopen($filepath, 'r');
+    if ($file_handle === false) {
+        return array();
+    }
+    while( ($line = fgets($file_handle)) !== false) {
+        $line_parts = explode("\t", rtrim($line));
+        $person = $line_parts[0];
+        $tastes = explode(",", $line_parts[1]);
+        // error
+        if (count($tastes) != count($restaurants)) {
+            fputs(STDERR, sprintf("Invalid input in %s", $filepath));
+            exit(0);
+        }
+        // add!
+        if (empty($restaurants)) {
+            $r[$person] = $tastes;
+        } else {
+            $r[$person] = array();
+            foreach(range(0, count($tastes)-1) as $n) {
+                $r[$person][$restaurants[$n]] = $tastes[$n];
+            }
+        }
     }
     fclose($file_handle);
     return $r;
@@ -92,7 +105,7 @@ function load_restaurants_from_file($filepath)
  * distances
  */
 // compute similarity score based on the distance between person1 and person2
-function sim_distance($prefs, $person1, $person2)
+function simDistance($prefs, $person1, $person2)
 {
     // get list of items for which both persons have scores
     $si = array();
@@ -119,7 +132,7 @@ function sim_distance($prefs, $person1, $person2)
 }
 
 // return Pearson correlation of p1 and p2
-function sim_pearson($prefs, $p1, $p2)
+function simPearson($prefs, $p1, $p2)
 {
     // get list of items for which both persons have scores
     $si = array();
@@ -168,7 +181,6 @@ function sim_pearson($prefs, $p1, $p2)
     }
 
     $r = $num / $den;
-
     return $r;
 }
 
@@ -177,7 +189,7 @@ function sim_pearson($prefs, $p1, $p2)
  */
 // return someone in prefs that matches $person best
 // number of results and similarity are optinal parameter
-function top_matches($prefs, $person, $n = 5, $similarity = 'sim_pearson')
+function topMatches($prefs, $person, $n = 5, $similarity = 'simPearson')
 {
     $scores = array();
     foreach ($prefs as $other => $item_arr) {
@@ -193,7 +205,7 @@ function top_matches($prefs, $person, $n = 5, $similarity = 'sim_pearson')
 
 
 // compute recommendations using weighted average of scores of all users but $person
-function get_recommendations($prefs, $person, $similarity = "sim_pearson")
+function getRecommendations($prefs, $person, $similarity = "simPearson")
 {
     $totals = array();
     $rankings = array();
@@ -204,7 +216,6 @@ function get_recommendations($prefs, $person, $similarity = "sim_pearson")
             continue;
         }
         $sim = call_user_func_array( $similarity, array($prefs, $person, $other));
-
         // ignore scores less than 0
         if ($sim <= 0) {
             continue;
@@ -214,12 +225,12 @@ function get_recommendations($prefs, $person, $similarity = "sim_pearson")
             // compute scores for items $person has not yet watched
             if ( (array_key_exists ($item, $prefs[$person]) == false) || $prefs[$person][$item] == 0 ) {
                 // similarity * score
-                if ( isset($totals[$item]) == false ) {
+                if ( array_key_exists($item, $totals) == false ) {
                     $totals[$item] = 0;
                 }
                 $totals[$item] += $prefs[$other][$item] * $sim;
                 // sum of similarities
-                if ( isset( $sim_sums[$item]) == false) {
+                if ( array_key_exists($item, $sim_sums) == false) {
                     $sim_sums[$item] = 0;
                 }
                 $sim_sums[$item] += $sim;
@@ -238,12 +249,12 @@ function get_recommendations($prefs, $person, $similarity = "sim_pearson")
 }
 
 // transform data
-function transform_prefs($prefs)
+function transformPrefs($prefs)
 {
     $result = array();
-    foreach ($prefs as $person) {
-        foreach ($prefs[$person] as $item) {
-            if (!array_key_exists($item, $result)) {
+    foreach ($prefs as $person => $items) {
+        foreach ($items as $item => $score) {
+            if (array_key_exists($item, $result) == false) {
                 $result[$item] = array();
             }
             // exchange $item and $person
@@ -254,13 +265,13 @@ function transform_prefs($prefs)
 }
 
 // compute item-based similarities
-function calculate_similar_items($prefs, $n = 10)
+function calculateSimilarItems($prefs, $n = 10)
 {
     // create an array with the key as $item and the value as a list of similar items to it
     $result = array();
 
     // transform prefs marix to item-centric
-    $item_prefs = transform_prefs($prefs);
+    $item_prefs = transformPrefs($prefs);
     $c = 0;
     foreach ($item_prefs as $item) {
         // show status in processing huge dataset
@@ -269,14 +280,14 @@ function calculate_similar_items($prefs, $n = 10)
             echo sprintf("%d / %d", $c, count($item_prefs));
         }
         // find items most similar to $item
-        $scores = top_matches($item_prefs, $item, $n, 'sim_distance');
+        $scores = topMatches($item_prefs, $item, $n, 'sim_distance');
         $result[$item] = $scores;
     }
     return $result;
 }
 
 // compute recommendations by computing item-based similarities
-function get_recommended_items($prefs, $item_match, $user)
+function getRecommendedItems($prefs, $item_match, $user)
 {
     $user_ratings = $prefs[$user];
     $scores = array();
@@ -354,23 +365,30 @@ if (!isset($options['t']) || !isset($options['u']) || !isset($options['f']) || !
     exit(1);
 }
 
-$critics = load_tastes_from_file($options['f']);
-$restaurants = load_restaurants_from_file($options['r']);
+$restaurants = loadRestaurantsFromFile($options['r']);
+$critics = loadTastesFromFile($options['f'], $restaurants);
 
 $user = $options['u'];
 switch ($options['t']) {
     case 'similar_person':
-        $top_matches = top_matches($critics, $user, 3);
+        $top_matches = topMatches($critics, $user, 3);
         echo sprintf("[To:%s] Most similar person to you!\n", $user);
         foreach ($top_matches as $other => $score) {
             echo sprintf("similar person: %s, similar score: %s\n", $other, $score);
         }
         break;
     case 'recommendation':
-        $recommendations = get_recommendations($critics, $user);
+        $recommendations = getRecommendations($critics, $user);
         echo sprintf("[To:%s] Recommendation for you!\n", $user);
         foreach ($recommendations as $item => $score) {
-            echo sprintf("recommended item: %s (%d banme), recommend score: %s\n", $restaurants[$item], $item, $score);
+            echo sprintf("recommended item: %s, recommend score: %s\n", $item, $score);
+        }
+        break;
+    case 'transform':
+        $transformed_prefs = transformPrefs($critics);
+        echo sprintf("Transforming...\n");
+        foreach ($transformed_prefs as $item => $critics) {
+            echo sprintf("transformed: item: %s, critics: %s\n", $item, implode(",", $critics));
         }
         break;
     default:
